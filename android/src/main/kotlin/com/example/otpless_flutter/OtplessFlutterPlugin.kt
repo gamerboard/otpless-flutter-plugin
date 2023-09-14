@@ -19,15 +19,16 @@ import org.json.JSONObject
 
 
 /** OtplessFlutterPlugin */
-class OtplessFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
+class OtplessFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
   /// The MethodChannel that will the communication between Flutter and native Android
   ///
   /// This local reference serves to register the plugin with the Flutter Engine and unregister it
   /// when the Flutter Engine is detached from the Activity
-  private lateinit var channel : MethodChannel
+  private lateinit var channel: MethodChannel
   private lateinit var context: Context
   private lateinit var activity: Activity
   private lateinit var otplessView: OtplessView
+  private var eventHandled = false
 
   override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     channel = MethodChannel(flutterPluginBinding.binaryMessenger, "otpless_flutter")
@@ -65,6 +66,7 @@ class OtplessFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
       "onSignComplete" -> {
         activity.runOnUiThread {
           otplessView.onSignInCompleted()
+          clean()
         }
       }
 
@@ -90,25 +92,38 @@ class OtplessFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
   }
 
   private fun openOtpless(json: JSONObject?) {
+    eventHandled = false
     activity.runOnUiThread {
       otplessView.startOtpless(json) {
         Log.d(Tag, "callback openOtpless with response $it")
         channel.invokeMethod("otpless_callback_event", it.toJsonString())
+        clean()
       }
     }
   }
 
-  private fun openOtplessLoginPage(json:JSONObject?) {
+  private fun clean() {
+    otplessView.setCallback(null, JSONObject(), false)
+    otplessView.showOtplessFab(false)
+    eventHandled = true
+  }
+
+  private fun openOtplessLoginPage(json: JSONObject?) {
+    eventHandled = false
     activity.runOnUiThread {
       otplessView.showOtplessLoginPage(json) {
         Log.d(Tag, "callback openOtplessLoginPage with response $it")
         channel.invokeMethod("otpless_callback_event", it.toJsonString())
+        clean()
       }
     }
   }
 
   fun onBackPressed(): Boolean {
-    return otplessView.onBackPressed()
+
+    val backPressed = otplessView.onBackPressed()
+    clean()
+    return backPressed && !eventHandled
   }
 
 
